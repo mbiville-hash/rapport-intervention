@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Rapport d'intervention — Fortis Rénovation</title>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --dark: #111110;
+    --gold: #b8975a;
+    --gold-light: rgba(184,151,90,0.15);
+    --gold-border: rgba(184,151,90,0.3);
+    --paper: #f7f5f0;
+    --white: #ffffff;
+    --ink: #1a1a18;
+    --ink-soft: rgba(26,26,24,0.55);
+    --ink-faint: rgba(26,26,24,0.25);
+  }
+
+  body {
+    background: var(--paper);
+    font-family: 'Montserrat', sans-serif;
+    color: var(--ink);
+    font-size: 12px;
+    line-height: 1.6;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    background: var(--paper);
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* HEADER */
+  .header {
+    background: var(--dark);
+    padding: 28px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .logo-name {
+    font-family: 'Bodoni Moda', serif;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--white);
+    letter-spacing: 0.04em;
+  }
+  .logo-name span { color: var(--gold); }
+  .logo-sub {
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.45);
+    margin-top: 5px;
+  }
+  .header-right { text-align: right; }
+  .doc-title {
+    font-family: 'Bodoni Moda', serif;
+    font-size: 10px;
+    font-weight: 400;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+  .doc-ref {
+    font-size: 9px;
+    color: rgba(255,255,255,0.35);
+    letter-spacing: 0.12em;
+    margin-top: 5px;
+  }
+
+  .gold-bar { height: 2px; background: var(--gold); }
+
+  /* BODY */
+  .body { padding: 32px 40px 40px; flex: 1; }
+
+  /* META GRID */
+  .meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border: 0.5px solid var(--gold-border);
+    margin-bottom: 28px;
+  }
+  .meta-cell {
+    padding: 12px 16px;
+    border-right: 0.5px solid var(--gold-border);
+    border-bottom: 0.5px solid var(--gold-border);
+  }
+  .meta-cell:nth-child(even) { border-right: none; }
+  .meta-cell:nth-last-child(-n+2) { border-bottom: none; }
+  .meta-label {
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 4px;
+  }
+  .meta-value {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink);
+  }
+
+  /* SECTION */
+  .section { margin-bottom: 22px; }
+  .section-title {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--gold);
+    padding-bottom: 7px;
+    border-bottom: 0.5px solid var(--gold-border);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title::before {
+    content: '';
+    display: block;
+    width: 18px;
+    height: 1px;
+    background: var(--gold);
+    flex-shrink: 0;
+  }
+  .section-text {
+    font-size: 12px;
+    line-height: 1.75;
+    color: var(--ink);
+    background: var(--white);
+    padding: 12px 16px;
+    border-left: 2px solid var(--gold);
+    white-space: pre-wrap;
+  }
+  .section-text.empty {
+    color: var(--ink-soft);
+    font-style: italic;
+  }
+
+  /* PHOTOS */
+  .photos-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .photo-item {
+    aspect-ratio: 4/3;
+    overflow: hidden;
+    border: 0.5px solid var(--gold-border);
+    background: #e8e5df;
+  }
+  .photo-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  /* SIGNATURES */
+  .sign-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 28px;
+  }
+  .sign-box {
+    border: 0.5px solid var(--gold-border);
+    padding: 14px 16px;
+    background: var(--white);
+  }
+  .sign-label {
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 10px;
+  }
+  .sign-area {
+    height: 70px;
+    border-bottom: 0.5px solid var(--ink-faint);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .sign-area img {
+    max-height: 65px;
+    max-width: 100%;
+    object-fit: contain;
+  }
+  .sign-name {
+    font-size: 10px;
+    color: var(--ink-soft);
+    letter-spacing: 0.05em;
+  }
+
+  /* FOOTER */
+  .footer {
+    background: var(--dark);
+    padding: 14px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: auto;
+  }
+  .footer-left {
+    font-size: 9px;
+    color: rgba(255,255,255,0.35);
+    letter-spacing: 0.08em;
+  }
+  .footer-right {
+    font-size: 9px;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+  }
+
+  @media print {
+    body { background: var(--paper); }
+    .page { margin: 0; width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="header">
+    <div>
+      <div class="logo-name">FORTIS RÉNOVATION<span>.</span></div>
+      <div class="logo-sub">Maintenance immobilière</div>
+    </div>
+    <div class="header-right">
+      <div class="doc-title">Rapport d'intervention</div>
+      <div class="doc-ref">Réf. {{numero_affaire}}</div>
+    </div>
+  </div>
+  <div class="gold-bar"></div>
+
+  <div class="body">
+
+    <div class="meta">
+      <div class="meta-cell">
+        <div class="meta-label">Client</div>
+        <div class="meta-value">{{client}}</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-label">Date</div>
+        <div class="meta-value">{{date}}</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-label">Adresse</div>
+        <div class="meta-value">{{adresse}}</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-label">Technicien</div>
+        <div class="meta-value">{{technicien}}</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-label">Heure d'arrivée</div>
+        <div class="meta-value">{{heure_arrivee}}</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-label">Heure de départ</div>
+        <div class="meta-value">{{heure_depart}}</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Équipement concerné</div>
+      <div class="section-text">{{equipement}}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Diagnostic</div>
+      <div class="section-text">{{diagnostic}}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Travaux réalisés</div>
+      <div class="section-text">{{travaux}}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Observations</div>
+      <div class="section-text">{{observations}}</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Photos avant intervention</div>
+      <div class="photos-grid">
+        {{photos_avant}}
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Photos après intervention</div>
+      <div class="photos-grid">
+        {{photos_apres}}
+      </div>
+    </div>
+
+    <div class="sign-row">
+      <div class="sign-box">
+        <div class="sign-label">Signature du client</div>
+        <div class="sign-area">
+          <img src="{{signature_client}}" alt="Signature client"/>
+        </div>
+        <div class="sign-name">{{nom_signataire}}</div>
+      </div>
+      <div class="sign-box">
+        <div class="sign-label">Signature technicien</div>
+        <div class="sign-area"></div>
+        <div class="sign-name">{{technicien}}</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    <div class="footer-left">193 Rue du Renard · 76000 Rouen · 07 67 49 13 24</div>
+    <div class="footer-right">fortisrenovation.fr</div>
+  </div>
+
+</div>
+</body>
+</html>
