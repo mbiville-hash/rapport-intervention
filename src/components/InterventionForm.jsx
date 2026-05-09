@@ -168,8 +168,8 @@ export default function InterventionForm({ token, onDone, onLogout }) {
     setError('')
     try {
       const payload = {
-        numero_affaire: form.affaire?.aff_number,
-        notion_affaire_id: form.affaire?.notion_id,
+        numero_affaire: form.sans_affaire ? 'SANS-AFFAIRE' : form.affaire?.aff_number,
+        notion_affaire_id: form.sans_affaire ? 'SANS_AFFAIRE' : form.affaire?.notion_id,
         sans_affaire: form.sans_affaire,
         reference_libre: form.reference_libre,
         client: form.client,
@@ -531,9 +531,9 @@ function Field({ label, children }) {
   return (
     <div style={{ marginBottom: 20 }}>
       <div style={{
-        fontSize: 10,
-        fontWeight: 600,
-        letterSpacing: '0.18em',
+        fontSize: 13,
+        fontWeight: 700,
+        letterSpacing: '0.12em',
         textTransform: 'uppercase',
         color: G.gold,
         marginBottom: 8,
