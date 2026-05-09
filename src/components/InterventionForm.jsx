@@ -60,6 +60,7 @@ export default function InterventionForm({ token, onDone, onLogout }) {
 
   // Photo handlers
   const addPhoto = async (category, file) => {
+    setError('')
     const preview = URL.createObjectURL(file)
     const id = Date.now() + Math.random()
     const photo = { id, preview, uploading: true, url: null }
@@ -72,8 +73,9 @@ export default function InterventionForm({ token, onDone, onLogout }) {
         ...f,
         [category]: f[category].map(p => p.id === id ? { ...p, uploading: false, url } : p)
       }))
-    } catch {
+    } catch (err) {
       setForm(f => ({ ...f, [category]: f[category].filter(p => p.id !== id) }))
+      setError(`Upload photo impossible : ${err.message}`)
     }
   }
 
@@ -86,8 +88,8 @@ export default function InterventionForm({ token, onDone, onLogout }) {
     if (step === 0) return form.technicien.trim() && form.affaire
     if (step === 1) return form.heure_arrivee && form.heure_depart
     if (step === 2) return form.equipement.trim() && form.diagnostic.trim() && form.travaux.trim()
-    if (step === 3) return true
-    if (step === 4) return true
+    if (step === 3) return !form.photos_avant.some(p => p.uploading)
+    if (step === 4) return !form.photos_apres.some(p => p.uploading)
     if (step === 5) return form.nom_signataire.trim()
     return true
   }
@@ -100,7 +102,10 @@ export default function InterventionForm({ token, onDone, onLogout }) {
         try {
           const url = await uploadSignature(dataUrl)
           set('signature_url', url)
-        } catch { /* continue sans signature */ }
+        } catch (err) {
+          setError(`Upload signature impossible : ${err.message}`)
+          return
+        }
       }
     }
     if (step < STEPS.length - 1) setStep(s => s + 1)
@@ -139,7 +144,8 @@ export default function InterventionForm({ token, onDone, onLogout }) {
       if (res.ok) {
         onDone()
       } else {
-        setError("Erreur lors de l'envoi. Réessayez.")
+        const details = await res.json().catch(() => ({}))
+        setError(details.details || details.error || "Erreur lors de l'envoi. Réessayez.")
         setStep(STEPS.length - 2)
       }
     } catch {
@@ -175,6 +181,9 @@ export default function InterventionForm({ token, onDone, onLogout }) {
 
       {/* Content */}
       <div style={s.content}>
+        {error && step < 6 && (
+          <div style={s.errorBanner}>{error}</div>
+        )}
 
         {/* ÉTAPE 0 : Technicien + Affaire */}
         {step === 0 && (
@@ -644,6 +653,16 @@ const s = {
     fontSize: 14,
     color: 'rgba(26,26,24,0.5)',
     letterSpacing: '0.06em',
+  },
+  errorBanner: {
+    background: 'rgba(224,92,92,0.08)',
+    border: '1px solid rgba(224,92,92,0.25)',
+    borderRadius: 4,
+    color: '#9f3232',
+    fontSize: 13,
+    lineHeight: 1.4,
+    padding: '10px 12px',
+    marginBottom: 16,
   },
   retryBtn: {
     padding: '14px 32px',

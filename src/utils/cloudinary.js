@@ -3,6 +3,16 @@ import imageCompression from 'browser-image-compression'
 const CLOUD = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME
 const PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET
 
+async function readUploadResponse(res) {
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || !data.secure_url) {
+    const message = data.error?.message || `Erreur Cloudinary ${res.status}`
+    throw new Error(message)
+  }
+
+  return data.secure_url
+}
+
 export async function compressAndUpload(file) {
   // Compression à 400kb max
   const compressed = await imageCompression(file, {
@@ -21,8 +31,7 @@ export async function compressAndUpload(file) {
     method: 'POST',
     body: form,
   })
-  const data = await res.json()
-  return data.secure_url
+  return readUploadResponse(res)
 }
 
 export async function uploadSignature(dataUrl) {
@@ -35,6 +44,5 @@ export async function uploadSignature(dataUrl) {
     method: 'POST',
     body: form,
   })
-  const data = await res.json()
-  return data.secure_url
+  return readUploadResponse(res)
 }
