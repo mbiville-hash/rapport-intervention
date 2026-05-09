@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import SignatureCanvas from 'react-signature-canvas'
-import { G } from '../App.jsx'
+import { G } from '../utils/colors.js'
 import PhotoUpload from './PhotoUpload.jsx'
 import { compressAndUpload, uploadSignature } from '../utils/cloudinary.js'
 

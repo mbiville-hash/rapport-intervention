@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { G } from '../App.jsx'
+import { G } from '../utils/colors.js'
 
 export default function PinScreen({ onAuth }) {
   const [pin, setPin] = useState('')

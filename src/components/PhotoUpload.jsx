@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { G } from '../App.jsx'
+import { G } from '../utils/colors.js'
 
 export default function PhotoUpload({ label, photos, onAdd, onRemove }) {
   const ref = useRef()

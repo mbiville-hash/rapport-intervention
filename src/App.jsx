@@ -1,3 +1,4 @@
+import { G } from './utils/colors.js'
 import { useState, useEffect } from 'react'
 import PinScreen from './components/PinScreen.jsx'
 import InterventionForm from './components/InterventionForm.jsx'
@@ -12,7 +13,7 @@ const G = {
   border: 'rgba(184,151,90,0.25)',
 }
 
-export { G }
+
 
 export default function App() {
   const [token, setToken] = useState(() => sessionStorage.getItem('fr_token'))
