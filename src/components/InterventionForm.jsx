@@ -6,6 +6,7 @@ import { compressAndUpload, uploadSignature } from '../utils/cloudinary.js'
 
 const STEPS = [
   'Intervention',
+  'Client',
   'Horaires',
   'Travaux',
   'Photos avant',
@@ -36,12 +37,18 @@ export default function InterventionForm({ token, onDone, onLogout }) {
   const [form, setForm] = useState({
     technicien: '',
     affaire: null,
+    sans_affaire: false,
+    client: '',
+    adresse: '',
+    email_client: '',
+    reference_libre: '',
     date: today(),
     heure_arrivee: '',
     heure_depart: '',
     equipement: '',
     diagnostic: '',
     travaux: '',
+    materiel_utilise: '',
     observations: '',
     photos_avant: [],
     photos_apres: [],
@@ -57,6 +64,32 @@ export default function InterventionForm({ token, onDone, onLogout }) {
   }, [token])
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
+
+  const chooseAffaire = (affaire) => {
+    setSearch('')
+    setForm(f => ({
+      ...f,
+      affaire,
+      sans_affaire: false,
+      client: affaire.contact || '',
+      adresse: affaire.adresse || '',
+      email_client: affaire.email_client || '',
+      reference_libre: '',
+    }))
+  }
+
+  const chooseSansAffaire = () => {
+    setSearch('')
+    setForm(f => ({
+      ...f,
+      affaire: null,
+      sans_affaire: true,
+      client: '',
+      adresse: '',
+      email_client: '',
+      reference_libre: '',
+    }))
+  }
 
   // Photo handlers
   const addPhoto = async (category, file) => {
@@ -85,42 +118,63 @@ export default function InterventionForm({ token, onDone, onLogout }) {
 
   // Validation par étape
   const canNext = () => {
-    if (step === 0) return form.technicien.trim() && form.affaire
-    if (step === 1) return form.heure_arrivee && form.heure_depart
-    if (step === 2) return form.equipement.trim() && form.diagnostic.trim() && form.travaux.trim()
-    if (step === 3) return !form.photos_avant.some(p => p.uploading)
-    if (step === 4) return !form.photos_apres.some(p => p.uploading)
-    if (step === 5) return form.nom_signataire.trim()
+    if (step === 0) return form.technicien.trim() && (form.affaire || form.sans_affaire)
+    if (step === 1) return form.client.trim() && form.adresse.trim() && form.email_client.trim()
+    if (step === 2) return form.heure_arrivee && form.heure_depart
+    if (step === 3) return form.equipement.trim() && form.diagnostic.trim() && form.travaux.trim()
+    if (step === 4) return !form.photos_avant.some(p => p.uploading)
+    if (step === 5) return !form.photos_apres.some(p => p.uploading)
+    if (step === 6) return form.nom_signataire.trim()
     return true
   }
 
   const handleNext = async () => {
-    if (step === 5) {
+    if (step === 0 && form.affaire && form.email_client.trim()) {
+      setStep(2)
+      return
+    }
+
+    if (step === STEPS.length - 2) {
       // Upload signature
+      let signatureUrl = form.signature_url
       if (sigRef.current && !sigRef.current.isEmpty()) {
         const dataUrl = sigRef.current.toDataURL('image/png')
         try {
-          const url = await uploadSignature(dataUrl)
-          set('signature_url', url)
+          signatureUrl = await uploadSignature(dataUrl)
+          set('signature_url', signatureUrl)
         } catch (err) {
           setError(`Upload signature impossible : ${err.message}`)
           return
         }
       }
+      if (step < STEPS.length - 1) setStep(s => s + 1)
+      handleSubmit(signatureUrl)
+      return
     }
+
     if (step < STEPS.length - 1) setStep(s => s + 1)
-    if (step === STEPS.length - 2) handleSubmit()
   }
 
-  const handleSubmit = async () => {
+  const handleBack = () => {
+    if (step === 2 && form.affaire && form.email_client.trim()) {
+      setStep(0)
+      return
+    }
+    setStep(s => s - 1)
+  }
+
+  const handleSubmit = async (signatureUrl = form.signature_url) => {
     setSubmitting(true)
     setError('')
     try {
       const payload = {
         numero_affaire: form.affaire?.aff_number,
         notion_affaire_id: form.affaire?.notion_id,
-        client: form.affaire?.contact,
-        adresse: form.affaire?.adresse,
+        sans_affaire: form.sans_affaire,
+        reference_libre: form.reference_libre,
+        client: form.client,
+        adresse: form.adresse,
+        email_client: form.email_client,
         date: form.date,
         technicien: form.technicien,
         heure_arrivee: form.heure_arrivee,
@@ -128,10 +182,11 @@ export default function InterventionForm({ token, onDone, onLogout }) {
         equipement: form.equipement,
         diagnostic: form.diagnostic,
         travaux: form.travaux,
+        materiel_utilise: form.materiel_utilise,
         observations: form.observations,
         photos_avant: form.photos_avant.filter(p => p.url).map(p => p.url),
         photos_apres: form.photos_apres.filter(p => p.url).map(p => p.url),
-        signature_client: form.signature_url,
+        signature_client: signatureUrl,
         nom_signataire: form.nom_signataire,
       }
 
@@ -181,7 +236,7 @@ export default function InterventionForm({ token, onDone, onLogout }) {
 
       {/* Content */}
       <div style={s.content}>
-        {error && step < 6 && (
+        {error && step < STEPS.length - 1 && (
           <div style={s.errorBanner}>{error}</div>
         )}
 
@@ -198,11 +253,31 @@ export default function InterventionForm({ token, onDone, onLogout }) {
               />
             </Field>
 
+            <div style={s.modeRow}>
+              <button
+                style={{ ...s.modeBtn, ...(!form.sans_affaire ? s.modeBtnActive : {}) }}
+                onClick={() => setForm(f => ({ ...f, sans_affaire: false }))}
+              >
+                Affaire existante
+              </button>
+              <button
+                style={{ ...s.modeBtn, ...(form.sans_affaire ? s.modeBtnActive : {}) }}
+                onClick={chooseSansAffaire}
+              >
+                Rapport sans affaire
+              </button>
+            </div>
+
             <Field label="Affaire">
-              {form.affaire ? (
+              {form.sans_affaire ? (
+                <div style={s.selectedAff}>
+                  <div style={s.selectedAffLabel}>Rapport à attribuer plus tard</div>
+                  <button style={s.changeBtn} onClick={() => set('sans_affaire', false)}>Choisir une affaire</button>
+                </div>
+              ) : form.affaire ? (
                 <div style={s.selectedAff}>
                   <div style={s.selectedAffLabel}>{form.affaire.label}</div>
-                  <button style={s.changeBtn} onClick={() => set('affaire', null)}>Changer</button>
+                  <button style={s.changeBtn} onClick={() => setForm(f => ({ ...f, affaire: null, client: '', adresse: '', email_client: '' }))}>Changer</button>
                 </div>
               ) : (
                 <div>
@@ -218,10 +293,11 @@ export default function InterventionForm({ token, onDone, onLogout }) {
                     <div style={s.affList}>
                       {filtered.length === 0 && <div style={s.hint}>Aucune affaire trouvée</div>}
                       {filtered.map(a => (
-                        <button key={a.notion_id} style={s.affItem} onClick={() => { set('affaire', a); setSearch('') }}>
+                        <button key={a.notion_id} style={s.affItem} onClick={() => chooseAffaire(a)}>
                           <div style={s.affNum}>{a.aff_number}</div>
                           <div style={s.affDesc}>{a.description_short}</div>
                           <div style={s.affContact}>{a.contact}</div>
+                          {!a.email_client && <div style={s.affWarning}>Email client à renseigner</div>}
                         </button>
                       ))}
                     </div>
@@ -232,8 +308,49 @@ export default function InterventionForm({ token, onDone, onLogout }) {
           </div>
         )}
 
-        {/* ÉTAPE 1 : Horaires */}
+        {/* ÉTAPE 1 : Client */}
         {step === 1 && (
+          <div>
+            <Field label={form.sans_affaire ? 'Client' : 'Client de l’affaire'}>
+              <input
+                style={s.input}
+                placeholder="Nom du client"
+                value={form.client}
+                onChange={e => set('client', e.target.value)}
+              />
+            </Field>
+            <Field label="Adresse">
+              <input
+                style={s.input}
+                placeholder="Adresse de l’intervention"
+                value={form.adresse}
+                onChange={e => set('adresse', e.target.value)}
+              />
+            </Field>
+            <Field label="Email client">
+              <input
+                style={s.input}
+                type="email"
+                placeholder="client@example.com"
+                value={form.email_client}
+                onChange={e => set('email_client', e.target.value)}
+              />
+            </Field>
+            {form.sans_affaire && (
+              <Field label="Référence libre (optionnel)">
+                <input
+                  style={s.input}
+                  placeholder="Ex : urgence palier, copropriété..."
+                  value={form.reference_libre}
+                  onChange={e => set('reference_libre', e.target.value)}
+                />
+              </Field>
+            )}
+          </div>
+        )}
+
+        {/* ÉTAPE 2 : Horaires */}
+        {step === 2 && (
           <div>
             <Field label="Heure d'arrivée">
               <div style={s.timeRow}>
@@ -265,8 +382,8 @@ export default function InterventionForm({ token, onDone, onLogout }) {
           </div>
         )}
 
-        {/* ÉTAPE 2 : Travaux */}
-        {step === 2 && (
+        {/* ÉTAPE 3 : Travaux */}
+        {step === 3 && (
           <div>
             <Field label="Équipement concerné">
               <input
@@ -294,6 +411,15 @@ export default function InterventionForm({ token, onDone, onLogout }) {
                 rows={4}
               />
             </Field>
+            <Field label="Matériel utilisé (optionnel)">
+              <textarea
+                style={s.textarea}
+                placeholder="Pièces, consommables, références, quantités..."
+                value={form.materiel_utilise}
+                onChange={e => set('materiel_utilise', e.target.value)}
+                rows={3}
+              />
+            </Field>
             <Field label="Observations (optionnel)">
               <textarea
                 style={s.textarea}
@@ -306,8 +432,8 @@ export default function InterventionForm({ token, onDone, onLogout }) {
           </div>
         )}
 
-        {/* ÉTAPE 3 : Photos avant */}
-        {step === 3 && (
+        {/* ÉTAPE 4 : Photos avant */}
+        {step === 4 && (
           <PhotoUpload
             label="Photos AVANT intervention"
             photos={form.photos_avant}
@@ -316,8 +442,8 @@ export default function InterventionForm({ token, onDone, onLogout }) {
           />
         )}
 
-        {/* ÉTAPE 4 : Photos après */}
-        {step === 4 && (
+        {/* ÉTAPE 5 : Photos après */}
+        {step === 5 && (
           <PhotoUpload
             label="Photos APRÈS intervention"
             photos={form.photos_apres}
@@ -326,8 +452,8 @@ export default function InterventionForm({ token, onDone, onLogout }) {
           />
         )}
 
-        {/* ÉTAPE 5 : Signature */}
-        {step === 5 && (
+        {/* ÉTAPE 6 : Signature */}
+        {step === 6 && (
           <div>
             <Field label="Signature du client">
               <div style={s.sigWrap}>
@@ -353,8 +479,8 @@ export default function InterventionForm({ token, onDone, onLogout }) {
           </div>
         )}
 
-        {/* ÉTAPE 6 : Envoi */}
-        {step === 6 && (
+        {/* ÉTAPE 7 : Envoi */}
+        {step === 7 && (
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
             {submitting ? (
               <div>
@@ -364,7 +490,7 @@ export default function InterventionForm({ token, onDone, onLogout }) {
             ) : error ? (
               <div>
                 <div style={{ color: '#e05c5c', marginBottom: 20 }}>{error}</div>
-                <button style={s.retryBtn} onClick={handleSubmit}>Réessayer</button>
+                <button style={s.retryBtn} onClick={() => handleSubmit()}>Réessayer</button>
               </div>
             ) : null}
           </div>
@@ -373,10 +499,10 @@ export default function InterventionForm({ token, onDone, onLogout }) {
       </div>
 
       {/* Footer Navigation */}
-      {step < 6 && (
+      {step < STEPS.length - 1 && (
         <div style={s.nav}>
           {step > 0 && (
-            <button style={s.backBtn} onClick={() => setStep(s => s - 1)}>
+            <button style={s.backBtn} onClick={handleBack}>
               ← Retour
             </button>
           )}
@@ -422,7 +548,7 @@ function Field({ label, children }) {
 const s = {
   page: {
     minHeight: '100dvh',
-    background: G.paper,
+    background: G.dark,
     fontFamily: "'DM Sans', sans-serif",
     display: 'flex',
     flexDirection: 'column',
@@ -452,12 +578,16 @@ const s = {
     marginTop: 2,
   },
   logoutBtn: {
-    background: 'transparent',
-    border: 'none',
-    color: 'rgba(255,255,255,0.3)',
-    fontSize: 12,
+    background: 'rgba(184,151,90,0.14)',
+    border: `1px solid ${G.gold}`,
+    borderRadius: 4,
+    color: G.gold,
+    fontSize: 14,
+    fontWeight: 600,
+    padding: '10px 14px',
     cursor: 'pointer',
-    letterSpacing: '0.05em',
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
   },
   progressWrap: {
     background: G.dark,
@@ -485,6 +615,7 @@ const s = {
     flex: 1,
     padding: '24px 20px',
     overflowY: 'auto',
+    background: G.paper,
   },
   input: {
     width: '100%',
@@ -588,6 +719,32 @@ const s = {
     color: 'rgba(26,26,24,0.4)',
     padding: '12px 14px',
     fontStyle: 'italic',
+  },
+  modeRow: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: 8,
+    marginBottom: 20,
+  },
+  modeBtn: {
+    padding: '12px 10px',
+    background: G.white,
+    border: `0.5px solid rgba(184,151,90,0.3)`,
+    borderRadius: 4,
+    color: G.soft,
+    fontSize: 13,
+    cursor: 'pointer',
+    letterSpacing: '0.02em',
+  },
+  modeBtnActive: {
+    background: G.dark,
+    border: `1px solid ${G.gold}`,
+    color: G.gold,
+  },
+  affWarning: {
+    marginTop: 6,
+    fontSize: 11,
+    color: '#9f3232',
   },
   sigWrap: {
     background: G.white,
