@@ -1,0 +1,76 @@
+const { verifyToken } = require('./_verify')
+
+const DB_ID = '35592dcce007809882b4d8fe98be13bb'
+const NOTION_VERSION = '2022-06-28'
+
+async function notionFetch(path, options = {}) {
+  const res = await fetch(`https://api.notion.com/v1${path}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${process.env.NOTION_TOKEN}`,
+      'Notion-Version': NOTION_VERSION,
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  })
+  return res.json()
+}
+
+module.exports = async function handler(req, res) {
+  const token = (req.headers.authorization || '').replace('Bearer ', '')
+  if (!verifyToken(token)) return res.status(401).json({ error: 'Non autorisé' })
+
+  // 1. Récupérer les affaires Gagné
+  const data = await notionFetch(`/databases/${DB_ID}/query`, {
+    method: 'POST',
+    body: JSON.stringify({
+      filter: { property: 'Étape', status: { equals: 'Gagné' } },
+      sorts: [{ property: 'ID', direction: 'descending' }],
+    }),
+  })
+
+  if (!data.results) return res.status(500).json({ error: 'Erreur Notion' })
+
+  // 2. Collecter les IDs de contacts uniques
+  const contactIds = []
+  for (const page of data.results) {
+    const contacts = page.properties['👥 Contacts']?.relation || []
+    if (contacts.length > 0) contactIds.push(contacts[0].id)
+  }
+
+  // 3. Fetch contacts en parallèle
+  const contactMap = {}
+  await Promise.all(
+    [...new Set(contactIds)].map(async (id) => {
+      const contact = await notionFetch(`/pages/${id}`)
+      const name = contact.properties?.['Prénom NOM']?.title?.[0]?.plain_text || ''
+      contactMap[id] = name
+    })
+  )
+
+  // 4. Construire la liste
+  const affaires = data.results.map((page) => {
+    const props = page.properties
+    const num = props['ID']?.unique_id?.number
+    const affId = num ? `AFF-${String(num).padStart(3, '0')}` : 'AFF-???'
+    const desc = props['Description']?.title?.[0]?.plain_text || ''
+    const adresse = props['Adresse chantier']?.place?.name || ''
+    const drive = props['Dossier Drive']?.url || ''
+    const contactId = props['👥 Contacts']?.relation?.[0]?.id || ''
+    const contact = contactMap[contactId] || ''
+    const descShort = desc.length > 40 ? desc.substring(0, 40) + '…' : desc
+
+    return {
+      notion_id: page.id,
+      aff_number: affId,
+      description: desc,
+      description_short: descShort,
+      contact,
+      adresse,
+      dossier_drive: drive,
+      label: `${affId} — ${descShort} — ${contact}`,
+    }
+  })
+
+  res.status(200).json(affaires)
+}
