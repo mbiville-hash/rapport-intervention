@@ -1,6 +1,6 @@
-const crypto = require('crypto')
+import crypto from 'crypto'
 
-function verifyToken(token) {
+export function verifyToken(token) {
   if (!token) return false
   const parts = token.split('.')
   if (parts.length !== 2) return false
@@ -16,5 +16,3 @@ function verifyToken(token) {
     return false
   }
 }
-
-module.exports = { verifyToken }
