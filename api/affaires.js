@@ -1,4 +1,4 @@
-const { verifyToken } = require('./_verify')
+import { verifyToken } from './_verify.js'
 
 const DB_ID = '35592dcce007809882b4d8fe98be13bb'
 const NOTION_VERSION = '2022-06-28'
@@ -16,7 +16,7 @@ async function notionFetch(path, options = {}) {
   return res.json()
 }
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   const token = (req.headers.authorization || '').replace('Bearer ', '')
   if (!verifyToken(token)) return res.status(401).json({ error: 'Non autorisé' })
 

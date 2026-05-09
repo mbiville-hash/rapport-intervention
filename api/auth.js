@@ -1,6 +1,6 @@
-const crypto = require('crypto')
+import crypto from 'crypto'
 
-module.exports = function handler(req, res) {
+export default function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
   const { pin } = req.body || {}
