@@ -13,25 +13,50 @@ async function readUploadResponse(res) {
   return data.secure_url
 }
 
-export async function compressAndUpload(file) {
-  // Compression à 400kb max
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = () => reject(new Error('Lecture du fichier impossible'))
+    reader.readAsDataURL(file)
+  })
+}
+
+export async function compressAndUpload(file, context) {
   const compressed = await imageCompression(file, {
-    maxSizeMB: 0.4,
-    maxWidthOrHeight: 1920,
+    maxSizeMB: 0.22,
+    maxWidthOrHeight: 1280,
+    initialQuality: 0.68,
     useWebWorker: true,
+    fileType: 'image/jpeg',
   })
 
-  // Upload Cloudinary
-  const form = new FormData()
-  form.append('file', compressed)
-  form.append('upload_preset', PRESET)
-  form.append('folder', 'fortis-rapports')
-
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`, {
+  const dataUrl = await fileToDataUrl(compressed)
+  const res = await fetch('/api/upload-photo', {
     method: 'POST',
-    body: form,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${context.token}`,
+    },
+    body: JSON.stringify({
+      category: context.category,
+      numero_affaire: context.numero_affaire,
+      notion_affaire_id: context.notion_affaire_id,
+      sans_affaire: context.sans_affaire,
+      reference_libre: context.reference_libre,
+      date: context.date,
+      original_name: file.name,
+      mime_type: compressed.type || 'image/jpeg',
+      data_url: dataUrl,
+    }),
   })
-  return readUploadResponse(res)
+
+  const payload = await res.json().catch(() => ({}))
+  if (!res.ok || !payload.photo) {
+    throw new Error(payload.details || payload.error || 'Upload Drive impossible')
+  }
+
+  return payload.photo
 }
 
 export async function uploadSignature(dataUrl) {
