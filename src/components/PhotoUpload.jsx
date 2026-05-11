@@ -31,7 +31,7 @@ export default function PhotoUpload({ label, photos, onAdd, onRemove }) {
 
         <button style={s.add} onClick={() => ref.current.click()}>
           <div style={s.addIcon}>+</div>
-          <div style={s.addLabel}>Ajouter</div>
+          <div style={s.addLabel}>Ajouter une photo</div>
         </button>
       </div>
 
@@ -40,7 +40,6 @@ export default function PhotoUpload({ label, photos, onAdd, onRemove }) {
         type="file"
         accept="image/*"
         multiple
-        capture="environment"
         style={{ display: 'none' }}
         onChange={handleFiles}
       />
