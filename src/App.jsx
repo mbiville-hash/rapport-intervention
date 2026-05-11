@@ -8,24 +8,38 @@ import InterventionForm from './components/InterventionForm.jsx'
 export default function App() {
   const [token, setToken] = useState(() => sessionStorage.getItem('fr_token'))
   const [done, setDone] = useState(false)
+  const [lastReport, setLastReport] = useState(null)
 
   const handleAuth = (t) => {
     sessionStorage.setItem('fr_token', t)
     setToken(t)
   }
 
-  const handleDone = () => setDone(true)
+  const handleDone = (report) => {
+    setLastReport(report || null)
+    setDone(true)
+  }
 
   if (done) {
     return (
       <div style={styles.page}>
         <div style={styles.successWrap}>
           <div style={styles.successIcon}>✓</div>
-          <div style={styles.successTitle}>Rapport envoyé</div>
-          <div style={styles.successSub}>Le brouillon email a été créé dans Gmail.</div>
+          <div style={styles.successTitle}>Rapport enregistré</div>
+          <div style={styles.successSub}>Le PDF est disponible dans le dossier Drive de l'affaire.</div>
+          {lastReport?.fileUrl && (
+            <a style={styles.linkBtn} href={lastReport.fileUrl} target="_blank" rel="noreferrer">
+              Ouvrir le rapport
+            </a>
+          )}
+          {lastReport?.folderUrl && (
+            <a style={styles.linkBtn} href={lastReport.folderUrl} target="_blank" rel="noreferrer">
+              Ouvrir le dossier affaire
+            </a>
+          )}
           <button
             style={styles.newBtn}
-            onClick={() => setDone(false)}
+            onClick={() => { setDone(false); setLastReport(null) }}
           >
             Nouveau rapport
           </button>
@@ -82,6 +96,21 @@ const styles = {
     fontSize: 14,
     letterSpacing: '0.1em',
     cursor: 'pointer',
+    borderRadius: 2,
+  },
+  linkBtn: {
+    display: 'block',
+    width: '100%',
+    maxWidth: 280,
+    margin: '0 auto 12px',
+    background: G.gold,
+    border: `1px solid ${G.gold}`,
+    color: G.dark,
+    padding: '14px 20px',
+    fontSize: 14,
+    fontWeight: 700,
+    letterSpacing: '0.06em',
+    textDecoration: 'none',
     borderRadius: 2,
   },
 }
