@@ -16,6 +16,10 @@ async function notionFetch(path, options = {}) {
   return res.json()
 }
 
+function plainText(items = []) {
+  return items.map(item => item.plain_text || '').join('')
+}
+
 export default async function handler(req, res) {
   const token = (req.headers.authorization || '').replace('Bearer ', '')
   if (!verifyToken(token)) return res.status(401).json({ error: 'Non autorisé' })
@@ -43,8 +47,10 @@ export default async function handler(req, res) {
   await Promise.all(
     [...new Set(contactIds)].map(async (id) => {
       const contact = await notionFetch(`/pages/${id}`)
-      const name = contact.properties?.['Prénom NOM']?.title?.[0]?.plain_text || ''
-      contactMap[id] = name
+      contactMap[id] = {
+        name: plainText(contact.properties?.['Prénom NOM']?.title) || '',
+        email: contact.properties?.['Email principal']?.email || '',
+      }
     })
   )
 
@@ -57,7 +63,7 @@ export default async function handler(req, res) {
     const adresse = props['Adresse chantier']?.place?.name || ''
     const drive = props['Dossier Drive']?.url || ''
     const contactId = props['👥 Contacts']?.relation?.[0]?.id || ''
-    const contact = contactMap[contactId] || ''
+    const contactInfo = contactMap[contactId] || { name: '', email: '' }
     const descShort = desc.length > 40 ? desc.substring(0, 40) + '…' : desc
 
     return {
@@ -65,10 +71,11 @@ export default async function handler(req, res) {
       aff_number: affId,
       description: desc,
       description_short: descShort,
-      contact,
+      contact: contactInfo.name,
+      email_client: contactInfo.email,
       adresse,
       dossier_drive: drive,
-      label: `${affId} — ${descShort} — ${contact}`,
+      label: `${affId} — ${descShort} — ${contactInfo.name}`,
     }
   })
 
