@@ -3,11 +3,18 @@ import { G } from '../utils/colors.js'
 
 export default function PhotoUpload({ label, photos, onAdd, onRemove }) {
   const ref = useRef()
+  const isUploading = photos.some(p => p.uploading)
 
-  const handleFiles = (e) => {
+  // Apps Script (Web App) ne traite qu'une requete a la fois : envoyer toutes
+  // les photos d'une selection multiple en parallele les fait se bousculer et
+  // Google renvoie parfois une page d'erreur HTML au lieu du JSON attendu.
+  // On les envoie donc une par une.
+  const handleFiles = async (e) => {
     const files = Array.from(e.target.files)
-    files.forEach(f => onAdd(f))
     e.target.value = ''
+    for (const file of files) {
+      await onAdd(file)
+    }
   }
 
   return (
@@ -29,9 +36,13 @@ export default function PhotoUpload({ label, photos, onAdd, onRemove }) {
           </div>
         ))}
 
-        <button style={s.add} onClick={() => ref.current.click()}>
+        <button
+          style={{ ...s.add, ...(isUploading ? s.addDisabled : {}) }}
+          onClick={() => ref.current.click()}
+          disabled={isUploading}
+        >
           <div style={s.addIcon}>+</div>
-          <div style={s.addLabel}>Ajouter une photo</div>
+          <div style={s.addLabel}>{isUploading ? 'Envoi en cours…' : 'Ajouter une photo'}</div>
         </button>
       </div>
 
@@ -40,6 +51,7 @@ export default function PhotoUpload({ label, photos, onAdd, onRemove }) {
         type="file"
         accept="image/*"
         multiple
+        disabled={isUploading}
         style={{ display: 'none' }}
         onChange={handleFiles}
       />
@@ -121,6 +133,10 @@ const s = {
     justifyContent: 'center',
     cursor: 'pointer',
     gap: 4,
+  },
+  addDisabled: {
+    cursor: 'default',
+    opacity: 0.5,
   },
   addIcon: {
     fontSize: 22,
