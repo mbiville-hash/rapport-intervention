@@ -109,11 +109,40 @@ du script a configurer :
 | `PDF_SECRET` | meme valeur que sur Vercel |
 | `WEBHOOK_SECRET` | facultatif, secret partage avec `/api/submit` |
 | `DRIVE_FALLBACK_FOLDER_ID` | dossier tampon des rapports sans affaire |
+| `REPORT_MAIL_TO` | facultatif, force le destinataire de tous les rapports |
+| `REPORT_MAIL_CC` | facultatif, adresse en copie systematique |
+| `REPORT_MAIL_REPLY_TO` | facultatif, adresse de reponse |
 
 `PDFCO_API_KEY` n'est plus utilisee et peut etre supprimee.
 
-La fonction `testPdfEndpoint()` verifie la liaison avec Vercel sans rien ecrire
-dans Drive : a lancer une fois apres le deploiement.
+Deux fonctions de verification, a lancer une fois apres le deploiement :
+
+- `testPdfEndpoint()` valide la liaison avec Vercel sans rien ecrire dans Drive ;
+- `testMailPreview()` affiche le sujet, le destinataire et le corps du mail sans
+  rien envoyer.
+
+## Envoi du rapport par mail
+
+Une fois le PDF depose dans Drive, Apps Script l'envoie en piece jointe.
+
+- Destinataire : `REPORT_MAIL_TO` s'il est defini, sinon l'adresse client saisie
+  dans le formulaire. Sans adresse, l'envoi est ignore et le PDF reste dans Drive.
+- Sujet : `Rapport d'intervention — AFF-024 — 17/06/2026`. La reference retombe
+  sur la reference libre puis sur l'equipement quand il n'y a pas d'affaire.
+- Corps : version texte et version HTML, avec le rappel de l'affaire, de
+  l'equipement, du technicien et des horaires. Aucun lien Drive n'y figure, pour
+  ne pas exposer le dossier interne au client.
+
+Un echec d'envoi n'interrompt jamais le rapport : le PDF est deja dans Drive.
+L'erreur est remontee dans la reponse (`mailError`) et dans les journaux.
+
+Tant que `REPORT_MAIL_TO` est renseigne, aucun mail ne part chez un client :
+tous les rapports arrivent sur cette seule adresse. C'est le reglage a garder le
+temps de valider la mise en page.
+
+L'ajout de `MailApp` introduit une nouvelle autorisation OAuth : au premier
+lancement apres la mise a jour, Apps Script demande de reautoriser le projet, et
+la Web App doit etre redeployee.
 
 ## Rapport sans affaire
 

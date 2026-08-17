@@ -12,6 +12,15 @@
  *   PDF_SECRET                meme valeur que la variable PDF_SECRET sur Vercel
  *   WEBHOOK_SECRET            (facultatif) secret partage avec /api/submit
  *   DRIVE_FALLBACK_FOLDER_ID  dossier tampon pour les rapports sans affaire
+ *   REPORT_MAIL_TO            (facultatif) force le destinataire de tous les
+ *                             rapports. Utile pour tout recevoir soi-meme, ou
+ *                             pour tester sans ecrire a un vrai client.
+ *   REPORT_MAIL_CC            (facultatif) adresse mise en copie systematique
+ *   REPORT_MAIL_REPLY_TO      (facultatif) adresse de reponse
+ *
+ * Sans REPORT_MAIL_TO, le rapport part a l'adresse du client saisie dans le
+ * formulaire. Si aucune adresse n'est disponible, l'envoi est simplement
+ * ignore : le PDF reste dans Drive.
  *
  * La propriete PDFCO_API_KEY n'est plus utilisee et peut etre supprimee.
  */
@@ -21,6 +30,10 @@ const CONFIG = {
   fallbackDriveFolderId: '12lsSe3SB1_k-ZgE3AyyMe55JSd5_zyDO',
   reportsParentFolderId: '',
   photosFolderName: 'Photos, plans et notes',
+  senderName: 'Fortis Rénovation',
+  companyAddress: '193 Rue du Renard · 76000 Rouen',
+  companyPhone: '07 67 49 13 24',
+  companySite: 'fortisrenovation.fr',
 };
 
 function doPost(e) {
@@ -40,6 +53,9 @@ function doPost(e) {
       fileUrl: result.file.getUrl(),
       folderId: result.folder.getId(),
       folderUrl: result.folder.getUrl(),
+      mailSentTo: result.mail.sentTo,
+      mailSkipped: result.mail.skipped,
+      mailError: result.mail.error,
     });
   } catch (error) {
     console.error(error.stack || error);
@@ -67,9 +83,32 @@ function testWithExamplePayload() {
     signature_technicien: '',
     signature_client: '',
     nom_signataire: 'Client Test',
+    skip_mail: true,
   };
 
   return processIntervention_(payload);
+}
+
+/**
+ * Affiche le sujet et le corps du mail sans rien envoyer.
+ * Pratique pour relire la formulation avant de passer en production.
+ */
+function testMailPreview() {
+  const payload = {
+    numero_affaire: 'AFF-024',
+    reference_libre: '',
+    client: 'Sara Buisson',
+    adresse: '144 Bis Rue du Renard, 76000 Rouen',
+    date: '17/06/2026',
+    technicien: 'Marc-Antoine',
+    heure_arrivee: '14:38',
+    heure_depart: '17:07',
+    email_client: 'client@example.com',
+  };
+
+  console.log(`Sujet   : ${buildMailSubject_(payload)}`);
+  console.log(`Vers    : ${JSON.stringify(resolveRecipients_(payload))}`);
+  console.log(`Corps   :\n${buildMailBody_(payload)}`);
 }
 
 /**
@@ -110,7 +149,130 @@ function processIntervention_(payload) {
   const filename = sanitizeFilename_(`Rapport-${payload.numero_affaire || 'sans-affaire'}-${isoDateForName_(payload.date)}.pdf`);
   const file = reportFolder.createFile(pdfBlob.setName(filename));
 
-  return { file, folder: reportFolder };
+  // Le PDF est deja en securite dans Drive : un envoi de mail qui echoue ne doit
+  // pas faire echouer le rapport, ni pousser le technicien a tout ressaisir.
+  const mail = payload.skip_mail ? { skipped: 'demande par l appelant' } : sendReportEmail_(payload, pdfBlob, filename);
+
+  return { file, folder: reportFolder, mail: mail };
+}
+
+/**
+ * Envoie le rapport au client, avec le PDF en piece jointe.
+ * Ne jette jamais : renvoie le resultat de la tentative.
+ */
+function sendReportEmail_(payload, pdfBlob, filename) {
+  try {
+    const recipients = resolveRecipients_(payload);
+    if (!recipients.to) {
+      console.warn('Aucune adresse destinataire : envoi du rapport ignore.');
+      return { skipped: 'aucune adresse destinataire' };
+    }
+
+    const options = {
+      name: CONFIG.senderName,
+      htmlBody: buildMailHtmlBody_(payload),
+      attachments: [pdfBlob.copyBlob().setName(filename)],
+    };
+    if (recipients.cc) options.cc = recipients.cc;
+    if (recipients.replyTo) options.replyTo = recipients.replyTo;
+
+    MailApp.sendEmail(recipients.to, buildMailSubject_(payload), buildMailBody_(payload), options);
+    console.log(`Rapport envoye a ${recipients.to}${recipients.cc ? ` (copie : ${recipients.cc})` : ''}`);
+    return { sentTo: recipients.to, cc: recipients.cc || '' };
+  } catch (error) {
+    console.error(`Envoi du rapport impossible : ${error.message}`);
+    return { error: cleanErrorMessage_(error) };
+  }
+}
+
+function resolveRecipients_(payload) {
+  const props = PropertiesService.getScriptProperties();
+  const override = (props.getProperty('REPORT_MAIL_TO') || '').trim();
+  return {
+    to: override || String(payload.email_client || '').trim(),
+    cc: (props.getProperty('REPORT_MAIL_CC') || '').trim(),
+    replyTo: (props.getProperty('REPORT_MAIL_REPLY_TO') || '').trim(),
+  };
+}
+
+/** Sujet du mail, construit pour rester cherchable dans une boite aux lettres. */
+function buildMailSubject_(payload) {
+  const reference = payload.numero_affaire || payload.reference_libre || payload.equipement || '';
+  const parts = ["Rapport d'intervention"];
+  if (reference) parts.push(reference);
+  if (payload.date) parts.push(payload.date);
+  return parts.join(' — ');
+}
+
+function buildMailBody_(payload) {
+  const lines = [
+    'Bonjour,',
+    '',
+    `Vous trouverez ci-joint le rapport de l'intervention réalisée le ${payload.date}${payload.adresse ? ` au ${payload.adresse}` : ''}.`,
+    '',
+  ];
+
+  mailFacts_(payload).forEach((fact) => lines.push(`${fact.label} : ${fact.value}`));
+
+  lines.push(
+    '',
+    'Nous restons à votre disposition pour toute question.',
+    '',
+    'Cordialement,',
+    CONFIG.senderName,
+    CONFIG.companyAddress,
+    CONFIG.companyPhone,
+    CONFIG.companySite
+  );
+
+  return lines.join('\n');
+}
+
+function buildMailHtmlBody_(payload) {
+  const facts = mailFacts_(payload)
+    .map(
+      (fact) =>
+        `<tr><td style="padding:2px 16px 2px 0;color:#8a8a86;white-space:nowrap">${escapeHtml_(fact.label)}</td>` +
+        `<td style="padding:2px 0;color:#1a1a18">${escapeHtml_(fact.value)}</td></tr>`
+    )
+    .join('');
+
+  return [
+    '<div style="font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#1a1a18">',
+    '<p>Bonjour,</p>',
+    `<p>Vous trouverez ci-joint le rapport de l'intervention réalisée le <strong>${escapeHtml_(payload.date)}</strong>` +
+      `${payload.adresse ? ` au ${escapeHtml_(payload.adresse)}` : ''}.</p>`,
+    `<table style="border-collapse:collapse;font-size:13px;margin:16px 0;border-left:2px solid #b8975a;padding-left:12px"><tbody>${facts}</tbody></table>`,
+    '<p>Nous restons à votre disposition pour toute question.</p>',
+    '<p>Cordialement,</p>',
+    '<p style="font-size:13px;color:#6b6b66;margin-top:24px;border-top:1px solid #e3e0d9;padding-top:12px">',
+    `<strong style="color:#1a1a18">${escapeHtml_(CONFIG.senderName)}</strong><br/>`,
+    `${escapeHtml_(CONFIG.companyAddress)}<br/>`,
+    `${escapeHtml_(CONFIG.companyPhone)}<br/>`,
+    `<a href="https://${escapeHtml_(CONFIG.companySite)}" style="color:#b8975a">${escapeHtml_(CONFIG.companySite)}</a>`,
+    '</p></div>',
+  ].join('');
+}
+
+function mailFacts_(payload) {
+  const facts = [];
+  if (payload.numero_affaire) facts.push({ label: 'Affaire', value: payload.numero_affaire });
+  else if (payload.reference_libre) facts.push({ label: 'Référence', value: payload.reference_libre });
+  if (payload.equipement) facts.push({ label: 'Équipement', value: payload.equipement });
+  if (payload.technicien) facts.push({ label: 'Technicien', value: payload.technicien });
+  if (payload.heure_arrivee && payload.heure_depart) {
+    facts.push({ label: 'Horaires', value: `${payload.heure_arrivee} – ${payload.heure_depart}` });
+  }
+  return facts;
+}
+
+function escapeHtml_(value) {
+  return String(value === undefined || value === null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 /**
