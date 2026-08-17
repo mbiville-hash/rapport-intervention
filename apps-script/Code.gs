@@ -12,15 +12,17 @@
  *   PDF_SECRET                meme valeur que la variable PDF_SECRET sur Vercel
  *   WEBHOOK_SECRET            (facultatif) secret partage avec /api/submit
  *   DRIVE_FALLBACK_FOLDER_ID  dossier tampon pour les rapports sans affaire
+ *   REPORT_MAIL_MODE          `brouillon` (defaut) prepare le mail dans Gmail
+ *                             sans rien envoyer ; `envoi` expedie directement.
  *   REPORT_MAIL_TO            (facultatif) force le destinataire de tous les
  *                             rapports. Utile pour tout recevoir soi-meme, ou
  *                             pour tester sans ecrire a un vrai client.
  *   REPORT_MAIL_CC            (facultatif) adresse mise en copie systematique
  *   REPORT_MAIL_REPLY_TO      (facultatif) adresse de reponse
  *
- * Sans REPORT_MAIL_TO, le rapport part a l'adresse du client saisie dans le
- * formulaire. Si aucune adresse n'est disponible, l'envoi est simplement
- * ignore : le PDF reste dans Drive.
+ * Sans REPORT_MAIL_TO, le rapport est adresse au client saisi dans le
+ * formulaire. Si aucune adresse n'est disponible, rien n'est prepare : le PDF
+ * reste dans Drive.
  *
  * La propriete PDFCO_API_KEY n'est plus utilisee et peut etre supprimee.
  */
@@ -53,7 +55,8 @@ function doPost(e) {
       fileUrl: result.file.getUrl(),
       folderId: result.folder.getId(),
       folderUrl: result.folder.getUrl(),
-      mailSentTo: result.mail.sentTo,
+      mailMode: result.mail.mode,
+      mailTo: result.mail.to,
       mailSkipped: result.mail.skipped,
       mailError: result.mail.error,
     });
@@ -90,8 +93,8 @@ function testWithExamplePayload() {
 }
 
 /**
- * Affiche le sujet et le corps du mail sans rien envoyer.
- * Pratique pour relire la formulation avant de passer en production.
+ * Affiche le mode, le destinataire, le sujet et le corps du mail.
+ * Ne cree aucun brouillon et n'envoie rien.
  */
 function testMailPreview() {
   const payload = {
@@ -106,8 +109,11 @@ function testMailPreview() {
     email_client: 'client@example.com',
   };
 
+  const recipients = resolveRecipients_(payload);
+  console.log(`Mode    : ${recipients.mode}${recipients.mode === 'envoi' ? ' — ATTENTION, les rapports partent directement' : ' — rien ne part sans relecture'}`);
+  console.log(`Vers    : ${recipients.to || '(aucune adresse : aucun mail ne sera prepare)'}`);
+  console.log(`Copie   : ${recipients.cc || '(aucune)'}`);
   console.log(`Sujet   : ${buildMailSubject_(payload)}`);
-  console.log(`Vers    : ${JSON.stringify(resolveRecipients_(payload))}`);
   console.log(`Corps   :\n${buildMailBody_(payload)}`);
 }
 
@@ -157,14 +163,19 @@ function processIntervention_(payload) {
 }
 
 /**
- * Envoie le rapport au client, avec le PDF en piece jointe.
+ * Prepare le rapport pour le client, avec le PDF en piece jointe.
+ *
+ * En mode `brouillon` — le defaut — le mail est depose dans les brouillons
+ * Gmail : rien ne part tant qu'il n'a pas ete relu et envoye a la main. Le mode
+ * `envoi` expedie directement.
+ *
  * Ne jette jamais : renvoie le resultat de la tentative.
  */
 function sendReportEmail_(payload, pdfBlob, filename) {
   try {
     const recipients = resolveRecipients_(payload);
     if (!recipients.to) {
-      console.warn('Aucune adresse destinataire : envoi du rapport ignore.');
+      console.warn('Aucune adresse destinataire : aucun mail prepare.');
       return { skipped: 'aucune adresse destinataire' };
     }
 
@@ -176,11 +187,21 @@ function sendReportEmail_(payload, pdfBlob, filename) {
     if (recipients.cc) options.cc = recipients.cc;
     if (recipients.replyTo) options.replyTo = recipients.replyTo;
 
-    MailApp.sendEmail(recipients.to, buildMailSubject_(payload), buildMailBody_(payload), options);
-    console.log(`Rapport envoye a ${recipients.to}${recipients.cc ? ` (copie : ${recipients.cc})` : ''}`);
-    return { sentTo: recipients.to, cc: recipients.cc || '' };
+    const subject = buildMailSubject_(payload);
+    const body = buildMailBody_(payload);
+    const copy = recipients.cc ? ` (copie : ${recipients.cc})` : '';
+
+    if (recipients.mode === 'envoi') {
+      MailApp.sendEmail(recipients.to, subject, body, options);
+      console.log(`Rapport envoye a ${recipients.to}${copy}`);
+      return { mode: 'envoi', to: recipients.to, cc: recipients.cc || '' };
+    }
+
+    GmailApp.createDraft(recipients.to, subject, body, options);
+    console.log(`Brouillon prepare pour ${recipients.to}${copy} — a relire dans Gmail avant envoi.`);
+    return { mode: 'brouillon', to: recipients.to, cc: recipients.cc || '' };
   } catch (error) {
-    console.error(`Envoi du rapport impossible : ${error.message}`);
+    console.error(`Preparation du mail impossible : ${error.message}`);
     return { error: cleanErrorMessage_(error) };
   }
 }
@@ -188,7 +209,11 @@ function sendReportEmail_(payload, pdfBlob, filename) {
 function resolveRecipients_(payload) {
   const props = PropertiesService.getScriptProperties();
   const override = (props.getProperty('REPORT_MAIL_TO') || '').trim();
+  const mode = (props.getProperty('REPORT_MAIL_MODE') || '').trim().toLowerCase();
   return {
+    // Tout ce qui n'est pas explicitement `envoi` reste un brouillon : une faute
+    // de frappe dans la propriete ne doit jamais declencher un envoi au client.
+    mode: mode === 'envoi' ? 'envoi' : 'brouillon',
     to: override || String(payload.email_client || '').trim(),
     cc: (props.getProperty('REPORT_MAIL_CC') || '').trim(),
     replyTo: (props.getProperty('REPORT_MAIL_REPLY_TO') || '').trim(),

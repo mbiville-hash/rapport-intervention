@@ -109,6 +109,7 @@ du script a configurer :
 | `PDF_SECRET` | meme valeur que sur Vercel |
 | `WEBHOOK_SECRET` | facultatif, secret partage avec `/api/submit` |
 | `DRIVE_FALLBACK_FOLDER_ID` | dossier tampon des rapports sans affaire |
+| `REPORT_MAIL_MODE` | `brouillon` (defaut) ou `envoi` |
 | `REPORT_MAIL_TO` | facultatif, force le destinataire de tous les rapports |
 | `REPORT_MAIL_CC` | facultatif, adresse en copie systematique |
 | `REPORT_MAIL_REPLY_TO` | facultatif, adresse de reponse |
@@ -121,28 +122,38 @@ Deux fonctions de verification, a lancer une fois apres le deploiement :
 - `testMailPreview()` affiche le sujet, le destinataire et le corps du mail sans
   rien envoyer.
 
-## Envoi du rapport par mail
+## Mail du rapport
 
-Une fois le PDF depose dans Drive, Apps Script l'envoie en piece jointe.
+Une fois le PDF depose dans Drive, Apps Script prepare le mail correspondant,
+PDF en piece jointe.
+
+### Brouillon ou envoi
+
+`REPORT_MAIL_MODE` pilote le comportement :
+
+- `brouillon` (defaut) : le mail est depose dans les brouillons Gmail. Rien ne
+  part tant qu'il n'a pas ete relu et envoye a la main.
+- `envoi` : le mail part directement, sans relecture.
+
+Seule la valeur exacte `envoi` declenche un envoi ; toute autre valeur, y
+compris une faute de frappe ou une propriete absente, laisse le mode brouillon.
+
+### Contenu
 
 - Destinataire : `REPORT_MAIL_TO` s'il est defini, sinon l'adresse client saisie
-  dans le formulaire. Sans adresse, l'envoi est ignore et le PDF reste dans Drive.
+  dans le formulaire. Sans adresse, rien n'est prepare et le PDF reste dans Drive.
 - Sujet : `Rapport d'intervention — AFF-024 — 17/06/2026`. La reference retombe
   sur la reference libre puis sur l'equipement quand il n'y a pas d'affaire.
 - Corps : version texte et version HTML, avec le rappel de l'affaire, de
   l'equipement, du technicien et des horaires. Aucun lien Drive n'y figure, pour
   ne pas exposer le dossier interne au client.
 
-Un echec d'envoi n'interrompt jamais le rapport : le PDF est deja dans Drive.
-L'erreur est remontee dans la reponse (`mailError`) et dans les journaux.
+Un echec n'interrompt jamais le rapport : le PDF est deja dans Drive. L'erreur
+est remontee dans la reponse (`mailError`) et dans les journaux.
 
-Tant que `REPORT_MAIL_TO` est renseigne, aucun mail ne part chez un client :
-tous les rapports arrivent sur cette seule adresse. C'est le reglage a garder le
-temps de valider la mise en page.
-
-L'ajout de `MailApp` introduit une nouvelle autorisation OAuth : au premier
-lancement apres la mise a jour, Apps Script demande de reautoriser le projet, et
-la Web App doit etre redeployee.
+`GmailApp` et `MailApp` introduisent de nouvelles autorisations OAuth : au
+premier lancement apres la mise a jour, Apps Script demande de reautoriser le
+projet, et la Web App doit etre redeployee.
 
 ## Rapport sans affaire
 
