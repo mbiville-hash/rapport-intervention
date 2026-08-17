@@ -27,6 +27,20 @@ const nowTime = () => {
   return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
 }
 
+// Le formulaire stocke la date au format JJ/MM/AAAA (attendu par le PDF, Apps
+// Script et le mail) ; l'input natif <input type="date"> exige du AAAA-MM-JJ.
+const toIsoDate = (value) => {
+  const [day, month, year] = String(value || '').split('/')
+  if (!day || !month || !year) return ''
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+}
+
+const fromIsoDate = (value) => {
+  const [year, month, day] = String(value || '').split('-')
+  if (!day || !month || !year) return ''
+  return `${day}/${month}/${year}`
+}
+
 export default function InterventionForm({ token, onDone, onLogout }) {
   const [step, setStep] = useState(0)
   const [affaires, setAffaires] = useState([])
@@ -134,7 +148,7 @@ export default function InterventionForm({ token, onDone, onLogout }) {
   const canNext = () => {
     if (step === 0) return form.technicien.trim() && (form.affaire || form.sans_affaire)
     if (step === 1) return form.client.trim() && form.adresse.trim() && form.email_client.trim()
-    if (step === 2) return form.heure_arrivee
+    if (step === 2) return form.date.trim() && form.heure_arrivee
     if (step === 3) return form.equipement.trim() && form.diagnostic.trim()
     if (step === 4) return !form.photos_avant.some(p => p.uploading)
     if (step === 5) return form.travaux.trim()
@@ -402,9 +416,22 @@ export default function InterventionForm({ token, onDone, onLogout }) {
           </div>
         )}
 
-        {/* ÉTAPE 2 : Horaires */}
+        {/* ÉTAPE 2 : Date + Horaires */}
         {step === 2 && (
           <div>
+            <Field label="Date de l'intervention">
+              <div style={s.timeRow}>
+                <input
+                  type="date"
+                  style={{ ...s.input, flex: 1 }}
+                  value={toIsoDate(form.date)}
+                  onChange={e => set('date', fromIsoDate(e.target.value))}
+                />
+                <button style={s.nowBtn} onClick={() => set('date', today())}>
+                  Aujourd'hui
+                </button>
+              </div>
+            </Field>
             <Field label="Heure d'arrivée">
               <div style={s.timeRow}>
                 <input
