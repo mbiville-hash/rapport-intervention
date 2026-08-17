@@ -1,4 +1,11 @@
 {
+  "functions": {
+    "api/pdf.js": {
+      "includeFiles": "assets/fonts/**",
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
